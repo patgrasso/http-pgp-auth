@@ -1,0 +1,5 @@
+# Garbage
+.*.sw*
+
+# Dependencies
+node_modules

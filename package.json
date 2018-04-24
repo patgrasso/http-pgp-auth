@@ -1,0 +1,21 @@
+{
+  "name": "http-pgp-auth",
+  "version": "0.0.1",
+  "description": "HTTP PGP Authentication Example",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js"
+  },
+  "keywords": [
+    "pgp",
+    "http",
+    "authentication"
+  ],
+  "author": "Patrick Grasso, Mark Wilson, Jonah Mania",
+  "license": "MIT",
+  "dependencies": {
+    "cookie-parser": "^1.4.3",
+    "express": "^4.16.3"
+  }
+}

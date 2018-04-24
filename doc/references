@@ -1,0 +1,21 @@
+%A Michael Dietz
+%A Alexei Czeskis
+%A Dirk Balfanz
+%A Dan S. Wallach
+%D Dec 2012
+%J Proc. of 21st USENIX conference on Security symposium
+%P 16-16
+%T Origin-Bound Certificates: A Fresh Approach to Strong Client Authentication for the Web
+
+%A S. Farrell
+%A P. Hoffman
+%A M. Thomas
+%D Mar 2015
+%T HTTP Origin-Bound Authentication (HOBA)
+%R RFC 7486
+
+%A R. Fielding
+%A J. Reschke
+%D Jun 2014
+%T Hypertext Transfer Protocol (HTTP/1.1): Authentication
+%R RFC 7235
