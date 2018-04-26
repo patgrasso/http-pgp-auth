@@ -1,0 +1,49 @@
+#!/bin/bash
+
+HELP="\
+Usage: $0 [options] <url>
+
+Uses PGP to log into the service pointed to by <url>.
+
+Options:
+  No options yet!
+"
+TMPDIR=${TMPDIR:-/tmp}
+
+if [ $# -lt 1 ]; then
+  echo -n "$HELP"
+  exit 1
+fi
+
+url="$1"
+
+nonce_file="$TMPDIR/nonce-`cat /dev/urandom | tr -dc '0-9a-f' | head -c 16`"
+sig_file="$TMPDIR/nonce-`cat /dev/urandom | tr -dc '0-9a-f' | head -c 16`"
+
+touch "$nonce_file"
+chmod 0600 "$nonce_file"
+
+curl -sI "$url" |
+  grep -o 'nonce=[a-zA-Z0-9\+\/\=]*' |
+  sed 's/nonce=//' > "$nonce_file"
+
+if [ "x${PIPESTATUS[1]}" != "x0" ]; then
+  echo "Error retrieving nonce from login URL"
+  rm "$nonce_file" 2>&1 >/dev/null || true
+  exit 1
+fi
+
+gpg -u patgra123@gmail.com --armor -o "$sig_file" -s "$nonce_file"
+rm "$nonce_file"
+
+signed_nonce=`cat "$sig_file" | sed 's/^/ /'`
+rm "$sig_file"
+
+cookie=`
+curl -sv -X POST -H "Authorization: PGP$signed_nonce" "$url" 2>&1 |
+  grep -i 'x-cookie-url' |
+  sed 's/^.*: *//'
+`
+echo "In your browser, go to:"
+echo "${url%%/login}/pgp-login/${cookie//[$'\t\r\n']}"
+croutonurlhandler "${url%%/login}/pgp-login/${cookie//[$'\t\r\n']}"
