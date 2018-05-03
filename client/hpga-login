@@ -1,0 +1,227 @@
+#!/usr/bin/env python3
+
+import sys
+import http.client
+import shlex
+import os
+import subprocess
+import pty
+import shutil
+from argparse import ArgumentParser
+from urllib.parse import urlparse, urljoin, ResultBase
+
+WWWAUTH_TYPE        = "PGP"
+WWWAUTH_HEADER      = "WWW-Authenticate"
+AUTHORIZATION_HEADER= "Authorization"
+WWWAUTH_NONCE_ATTR  = "challenge"
+GPG_EXE             = "gpg"
+
+parser = ArgumentParser(
+  description="""
+  Authenticate with a web service using HTTP Pretty Good Authentication
+  (HPGA). Usually a service offering HPGA as an option for authentication
+  will provide a URL that can be used with this tool.
+  """,
+
+  usage="%(prog)s [options] url"
+)
+
+parser.add_argument(
+  "url",
+  help="Authentication URL specified by web service",
+)
+
+parser.add_argument(
+  "-u", "--local-user",
+  type=str,
+  metavar="name",
+  help="Use 'name' as the key to sign with (see gpg(1))"
+)
+
+parser.add_argument(
+  "-b", "--browser",
+  type=str,
+  metavar="name",
+  help="Executable to use for opening URLs"
+)
+
+parser.add_argument(
+  "--no-browser",
+  action="store_true",
+  help="Don't attempt to open any URLs in a browser"
+)
+
+
+def request(method, url, headers={}):
+  """
+  Create an HTTP[S]Connection and send a request to the given url. Returns the
+  HTTPResponse object or exits if something went wrong.
+
+  method
+    HTTP method for the request (e.g. "GET", "POST").
+
+  url
+    Location to send the request.
+  """
+  try:
+    if url.scheme== "https":
+      conn = http.client.HTTPSConnection(
+          url.hostname, url.port or http.client.HTTPS_PORT)
+    else:
+      conn = http.client.HTTPConnection(
+          url.hostname, url.port or http.client.HTTP_PORT)
+    conn.request(method, url.geturl(), headers=headers)
+    resp = conn.getresponse()
+    conn.close()
+    return resp
+
+  except http.client.InvalidURL as e:
+    sys.stderr.write("Error: %s\n" % str(e))
+    exit(1)
+
+  except Exception as e:
+    raise e
+
+
+def parse_auth_header(value):
+  """
+  Parse the WWW-Authenticate header value. Attributes should be separated
+  by ', '. Attribute values should be quoted in single or double quotes if they
+  contain spaces (e.g. realm="This website").
+
+  value
+    The value associated with the WWW-Authenticate header. This should be of
+    the form:
+
+      PGP [realm=<realm>, ][charset=<charset>, ]challenge=<challenge>
+
+    where [x=y] indicates an optional attribute.
+  """
+  if value is None:
+    raise ValueError("Missing %s header" % WWWAUTH_HEADER)
+
+  auth_type, auth_attrs = value.split(" ", 1)
+  auth_attr_dict = {}
+
+  if auth_type.lower() != WWWAUTH_TYPE.lower():
+    raise ValueError("Invalid authentication type: %s" % auth_type)
+
+  for attr in shlex.split(auth_attrs):
+    attr_name, attr_val = attr.strip(" \t\n,").split("=", 1)
+    auth_attr_dict[attr_name.lower()] = attr_val
+
+  if WWWAUTH_NONCE_ATTR not in auth_attr_dict:
+    raise KeyError("%s header missing '%s' attribute" %
+        (WWWAUTH_HEADER, WWWAUTH_NONCE_ATTR))
+
+  return auth_attr_dict
+
+
+def open_url_in_browser(url):
+  """
+  If the user has a way to open a URL ($BROWSER or xdg-open), open the given
+  url. Otherwise, just return false.
+
+  url
+    URL to open in the user's preferred browser.
+  """
+  url = url.geturl() if isinstance(url, ResultBase) else url
+
+  if "BROWSER" in os.environ:
+    subprocess.run([ os.environ["BROWSER"], url ])
+  elif shutil.which("xdg-open") is not None:
+    subprocess.run([ "xdg-open", url ])
+  else:
+    return False
+
+  return True
+
+
+def main(args):
+  gpg_opts = ["--batch", "--armor", "-s"]
+
+  if args.local_user is not None:
+    gpg_opts.append("-u")
+    gpg_opts.append(args.local_user)
+
+  try:
+    url = urlparse(args.url)
+
+    if url.hostname is None:
+      raise http.client.InvalidURL("empty hostname")
+
+    # Test accessors for port and hostname -- if either of these are invalid, an
+    # exception will be thrown
+    url.port
+    url.hostname
+  except http.client.InvalidURL as e:
+    sys.stderr.write("Error: %s\n" % str(e))
+    exit(1)
+  except:
+    sys.stderr.write("Error: Invalid url '%s'\n" % args.url)
+    exit(1)
+
+
+  try:
+    init_response = request("GET", url)
+    auth_spec = parse_auth_header(init_response.headers.get(WWWAUTH_HEADER))
+    challenge = auth_spec["challenge"]
+
+    # If GPG_TTY is defined in the environment, respect it. Otherwise,
+    # explicitly tell gpg to use the tty attached to stdin. This is to make
+    # sure pinentry(1) doesn't fail due to its inability to find the right tty.
+    if "GPG_TTY" in os.environ:
+      gpg_tty = os.environ["GPG_TTY"]
+    else:
+      gpg_tty = os.ttyname(0)
+
+    gpg_proc = subprocess.Popen(
+      [ GPG_EXE ] + gpg_opts,
+      env={ "GPG_TTY": os.ttyname(0) },
+      stdin=subprocess.PIPE,
+      stdout=subprocess.PIPE,
+      stderr=subprocess.PIPE,
+    )
+    stdout, stderr = gpg_proc.communicate(challenge.encode("utf-8"))
+
+    if gpg_proc.returncode != 0:
+      raise Exception(stderr.decode("utf-8"))
+
+    pgp_msg = stdout.decode("utf-8")
+
+    # Send the pgp signed message to the same URL as a header in a POST
+    # request. '\n' is replaced with '\n ' because each line in multi-line
+    # header values must begin with a space or \t.
+    auth_response = request("POST", url, {
+      AUTHORIZATION_HEADER: "PGP %s" % pgp_msg.replace("\n", "\n ")
+    })
+
+    # Handle response from authentication request
+    status_code = auth_response.getcode()
+
+    if status_code == 401:
+      sys.stderr.write("Error: Received 'Unauthorized' (401) from server\n")
+      exit(2)
+
+    elif 300 <= status_code < 400:
+      location = urlparse(auth_response.headers.get("Location"))
+      joined_url = urljoin(url.geturl(), location.geturl())
+
+      if not open_url_in_browser(joined_url):
+        print("Could not open your browser to create a session.")
+        print("Please visit this URL to finish logging in:")
+        print()
+        print("  ", joined_url)
+
+    elif status_code >= 400:
+      sys.stderr.write("Error: (%d from server) %s\n" %
+          (status_code, auth_response.read().decode("utf-8")))
+
+  except Exception as e:
+    sys.stderr.write("Error: %s\n" % str(e))
+    exit(1)
+
+
+if __name__ == "__main__":
+  args = parser.parse_args(sys.argv[1:])
+  main(args)
