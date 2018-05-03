@@ -13,14 +13,14 @@ const DEF_SESSION   = {
 };
 
 const sessions      = {};
-const nonces        = {};
+const challenges        = {};
 
 const unclaimedCookies = {};
 
 function generateWWWAuthenticateHeader() {
-  let nonce = crypto.randomBytes(NONCE_BYTES).toString('base64');
-  nonces[nonce] = true;
-  return `PGP realm="Testing PGP Auth", nonce=${nonce}`;
+  let challenge = crypto.randomBytes(NONCE_BYTES).toString('base64');
+  challenges[challenge] = true;
+  return `PGP realm="Testing PGP Auth", challenge=${challenge}`;
 }
 
 const AUTH_HDR_RE   = /^([^ ]*?) (.*)$/
@@ -81,10 +81,10 @@ function login(options={}) {
         }
 
         // Once we verify the signature, we need to check that the data is
-        // actually a valid nonce (one that we've issued).
+        // actually a valid challenge (one that we've issued).
         var { data, user } = await pgp.verify(authData);
 
-        if (nonces[data.toString().trim()] !== true) {
+        if (challenges[data.toString().trim()] !== true) {
           throw new Error('Invalid signature');
         }
       } catch (e) {
@@ -100,7 +100,10 @@ function login(options={}) {
       Object.assign(sessions[cookie], user);
 
       res.setHeader('Set-Cookie', `${AUTH_COOKIE}="${cookie}"`);
-      res.setHeader('x-cookie-url', cid);
+      //res.setHeader('x-cookie-url', cid);
+
+      // XXX: vvv temporary vvv
+      return res.redirect(`/pgp-login/${cid}`)
 
       if (successRedirect) {
         return res.redirect(successRedirect);
