@@ -80,9 +80,46 @@ point. Lastly, the attacker may discard the challenge, in which case the client
 would be unable to authenticate. This requires the assumption that the attacker
 has the ability to modify content going through the network.
 
-## Use of GPG
+## Use of local key manager
+
+Third-party key managers such as GnuPG are responsible for securely storing
+keys (in particular, private keys, but also public keys). These key managers
+have a separate set of concerns outside the scope of this protocol. As the
+current client for authentication utilizes GnuPG, we must consider the
+trustworthiness of what the gpg(1) tool outputs.
+
+To minimize risk when outsourcing cryptographic routines to other tools, care
+should be taken to reduce the places at which both the challenge and the
+signature rest within the system. At no point should either of these be written
+to disk, such as in a temporary file. Ideally, a library would be loaded into
+the process space of the primary HPGA client, and cryptographic routines
+performed within the same process. This provides minimal movement of data.
+
+Another acceptable solution involves piping the challenge directly into a
+second process to perform the signature, then collecting the output and storing
+it in the client process's memory space. Thus, at no point is the data
+available to any other user on the system.
 
 ## Server handling of public keys
 
+Web servers implementing HPGA are anticipated to outsource much of the public
+key infrastructure to key servers, querying them whenever a key ID is not known
+to the server. This, however, may burden key servers with higher-than-usual
+traffic. To avoid being over-burdensome to key servers, web servers may opt to
+cache public keys for future logins.
+
+Caching keys introduces a set of risks that should be kept in mind. First,
+cached public keys should be checked for expiry and invalidated if expired.
+Second, the cache must be kept safe from alteration. If a key ID is improperly
+associated with a public key (that is, the public key's ID does not match the
+key ID with which it is mapped in the cache), an attacker may be able to
+convince the server that her signature is valid for another user!
+
+Public keys retrieved from key servers should be obtained via secure channels
+(TLS) in order to mitigate MITM modification attacks. Also, only trustworthy
+key servers should be selected for querying.
+
 ## Key signatures / web of trust
+
+Not considered for this version of the protocol.
 
