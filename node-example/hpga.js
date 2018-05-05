@@ -3,7 +3,6 @@ const passport      = require('passport');
 const HPGAStrategy  = require('passport-hpga');
 const openpgp       = require('openpgp');
 const crypto        = require('crypto');
-const path          = require('path');
 const router        = express.Router();
 
 const keyCache      = {};
@@ -50,8 +49,8 @@ const authenticate = passport.authenticate('hpga', {
 router.get(
   '/login',
   authenticate,
-  (req, res) => res.sendFile(path.resolve('views/login.html')),
-  (err, req, res, next) => res.sendFile(path.resolve('views/login.html'))
+  (req, res) => res.sendFile(__dirname + '/views/login.html'),
+  (err, req, res, next) => res.sendFile(__dirname + '/views/login.html')
 );
 
 // Expects the 'Authorization' header to contain 'PGP <challenge sig>'.

@@ -1,6 +1,6 @@
 const openpgp   = require('openpgp');
 
-const KEYSERVER = 'http://gpg.nebrwesleyan.edu';
+const KEYSERVER = 'https://pgp.mit.edu';
 const USERID_RE = /^(.*?) ?<(.*?)>$/;
 const PGP_RE = /(\-{5}(?:BEGIN|END) PGP [A-Z]*\-{5}|[a-zA-Z0-9\+\/\=]{1,64})/g;
 
