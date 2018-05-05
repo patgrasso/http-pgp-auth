@@ -1,0 +1,21 @@
+{
+  "name": "passport-hpga",
+  "version": "0.0.1",
+  "description": "Passport strategy for authenticating using HTTP PGP Authentication",
+  "main": "lib/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "pgp",
+    "authentication",
+    "passport",
+    "strategy"
+  ],
+  "author": "Patrick Grasso, Mark Wilson, Jonah Mania",
+  "license": "MIT",
+  "dependencies": {
+    "openpgp": "^3.0.9",
+    "passport-strategy": "^1.0.0"
+  }
+}
