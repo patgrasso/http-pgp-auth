@@ -1,1 +1,1 @@
-hpga-login
+../bin/hpga-login
