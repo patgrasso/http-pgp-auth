@@ -1,5 +1,5 @@
 {
-  "name": "http-pgp-auth",
+  "name": "http-pgp-auth-example",
   "version": "0.0.1",
   "description": "HTTP PGP Authentication Example",
   "main": "index.js",
@@ -20,6 +20,6 @@
     "express-session": "^1.15.6",
     "openpgp": "^3.0.7",
     "passport": "^0.4.0",
-    "passport-hpga": "file:passport-hpga"
+    "passport-hpga": "file:../passport-hpga"
   }
 }
