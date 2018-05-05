@@ -187,6 +187,9 @@ class HPGAStrategy extends Strategy {
     } else if (req.method === 'GET' && (req.params.token || req.query.token)) {
       return this.handleTokenClaim(req, options);
 
+    } else if (req.isAuthenticated()) {
+      return this.success(req.user);
+
     } else if (req.method === 'GET') {
       return this.fail(`PGP challenge="${this.generateChallenge()}"`);
     }
